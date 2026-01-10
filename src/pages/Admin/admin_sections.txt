@@ -1,0 +1,60 @@
+                 {/* Organization Details Section */}
+                 <div className="space-y-6">
+                    <div className="flex items-center space-x-3 text-primary">
+                       <Building2 size={20} />
+                       <h4 className="font-black uppercase tracking-tight text-sm">Organization Details</h4>
+                    </div>
+                    <div className="space-y-1.5">
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Organization Name</label>
+                       <input 
+                         type="text" 
+                         className="input h-14 bg-gray-50 border-transparent focus:bg-white font-bold"
+                         placeholder="Organization Name"
+                         value={selectedOrg.name || ''}
+                         onChange={(e) => setSelectedOrg({...selectedOrg, name: e.target.value})}
+                       />
+                    </div>
+                 </div>
+
+                 {/* Admin User Section */}
+                 <div className="space-y-6">
+                    <div className="flex items-center space-x-3 text-primary">
+                       <Users size={20} />
+                       <h4 className="font-black uppercase tracking-tight text-sm">Primary Admin User</h4>
+                    </div>
+                    <div className="grid grid-cols-2 gap-6">
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Update Name</label>
+                          <input 
+                            type="text" 
+                            className="input h-14 bg-gray-50 border-transparent focus:bg-white font-bold"
+                            placeholder="Leave blank to keep current"
+                            value={selectedOrg.adminName || ''}
+                            onChange={(e) => setSelectedOrg({...selectedOrg, adminName: e.target.value})}
+                          />
+                       </div>
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Update Email</label>
+                          <input 
+                            type="email" 
+                            className="input h-14 bg-gray-50 border-transparent focus:bg-white font-bold"
+                            placeholder="Leave blank to keep current"
+                            value={selectedOrg.adminEmail || ''}
+                            onChange={(e) => setSelectedOrg({...selectedOrg, adminEmail: e.target.value})}
+                          />
+                       </div>
+                       <div className="col-span-2 space-y-1.5">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Reset Password</label>
+                          <div className="relative">
+                             <Key size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" />
+                             <input 
+                               type="password" 
+                               className="input h-14 pl-14 bg-gray-50 border-transparent focus:bg-white font-bold"
+                               placeholder="Enter new password to reset"
+                               value={selectedOrg.adminPassword || ''}
+                               onChange={(e) => setSelectedOrg({...selectedOrg, adminPassword: e.target.value})}
+                             />
+                          </div>
+                       </div>
+                    </div>
+                 </div>
