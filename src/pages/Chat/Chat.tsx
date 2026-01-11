@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { socketService } from '../../services/socketService';
 import { useAuth } from '../../store/authStore';
-import { Search, Send, FileText, User, MoreVertical, Share2, Plus, Image as ImageIcon, Film, File, Check, CheckCheck, Loader2, ShoppingBag, MapPin, Filter, Download, MessageSquareReply, Radio, UserCheck } from 'lucide-react';
+import { Search, Send, FileText, User, MoreVertical, Share2, Plus, Image as ImageIcon, Film, File, Check, CheckCheck, Loader2, ShoppingBag, MapPin, Filter, Download, MessageSquareReply, Radio, UserCheck, Volume2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -255,13 +255,13 @@ const Chat: React.FC = () => {
                 selectedConversationId === conv.id && "bg-primary/5 hover:bg-primary/5 border-r-4 border-r-primary"
               )}
             >
-              <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center font-bold text-gray-500 shadow-sm border border-white flex-shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center font-bold text-gray-500 shadow-sm border border-white shrink-0">
                 {conv.name[0]}
               </div>
               <div className="flex-1 text-left overflow-hidden min-w-0">
                 <div className="flex justify-between items-center mb-0.5">
                   <h4 className="font-bold text-gray-900 truncate">{conv.name}</h4>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase flex-shrink-0">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase shrink-0">
                     {safeFormatDate(conv.updatedAt, 'HH:mm')}
                   </span>
                 </div>
@@ -309,7 +309,7 @@ const Chat: React.FC = () => {
               
               {/* Unread Count Circle Badge */}
               {conv.unreadCount > 0 && (
-                <div className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-[11px] font-bold shadow-sm flex-shrink-0">
+                <div className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-[11px] font-bold shadow-sm shrink-0">
                   {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
                 </div>
               )}
@@ -547,6 +547,24 @@ const Chat: React.FC = () => {
                           >
                             <Share2 size={14} />
                           </button>
+                        </div>
+                      ) : msg.type === 'AUDIO' ? (
+                        <div className={cn(
+                          "flex items-center space-x-3 p-3 rounded-xl mb-1",
+                          isAgent ? "bg-white/10" : "bg-gray-50"
+                        )}>
+                          <div className={cn(
+                            "w-10 h-10 rounded-full flex items-center justify-center",
+                            isAgent ? "bg-white/20" : "bg-primary/10"
+                          )}>
+                            <Volume2 size={20} className={isAgent ? "text-white" : "text-primary"} />
+                          </div>
+                          <audio 
+                            src={getMediaUrl(msg.mediaId || msg.mediaUrl)} 
+                            controls
+                            className="flex-1 h-10"
+                            style={{ maxWidth: '250px' }}
+                          />
                         </div>
                       ) : null}
                       

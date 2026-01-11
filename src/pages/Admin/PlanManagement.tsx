@@ -64,8 +64,10 @@ const PlanManagement: React.FC = () => {
         await createPlan(formData);
       }
       setIsModalOpen(false);
-    } catch (err) {
-      alert('Failed to save plan');
+      setIsModalOpen(false);
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || 'Failed to save plan';
+      alert(errorMsg);
     }
   };
 

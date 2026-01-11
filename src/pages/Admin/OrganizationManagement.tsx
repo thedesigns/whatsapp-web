@@ -86,8 +86,11 @@ const OrganizationManagement: React.FC = () => {
       } as any);
       setIsEditModalOpen(false);
       setSelectedOrg(null);
-    } catch (err) {
-      alert('Failed to update customer subscription');
+      setIsEditModalOpen(false);
+      setSelectedOrg(null);
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || 'Failed to update customer subscription';
+      alert(errorMsg);
     }
   };
 
@@ -131,7 +134,7 @@ const OrganizationManagement: React.FC = () => {
             </div>
             <div>
                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Active Accounts</p>
-               <h3 className="text-2xl font-black text-gray-900">{organizations.filter(o => o.isActive).length}</h3>
+               <h3 className="text-2xl font-black text-gray-900">{organizations.filter(o => o.isActive).length} / {organizations.length}</h3>
             </div>
          </div>
          <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm flex items-center space-x-4">
@@ -139,8 +142,16 @@ const OrganizationManagement: React.FC = () => {
                <CreditCard size={24} />
             </div>
             <div>
-               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Revenue Status</p>
-               <h3 className="text-2xl font-black text-gray-900">Optimal</h3>
+               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Est. ARR</p>
+               <h3 className="text-2xl font-black text-gray-900">
+                  ${organizations.reduce((acc, org) => {
+                    if (!org.subscriptionPlan) return acc;
+                    const price = org.billingCycle === 'YEARLY' 
+                      ? org.subscriptionPlan.yearlyPrice || 0 
+                      : (org.subscriptionPlan.price || 0) * 12;
+                    return acc + price;
+                  }, 0).toLocaleString()}
+               </h3>
             </div>
          </div>
          <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm flex items-center space-x-4">
@@ -148,7 +159,7 @@ const OrganizationManagement: React.FC = () => {
                <Users size={24} />
             </div>
             <div>
-               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Seats</p>
+               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Agents</p>
                <h3 className="text-2xl font-black text-gray-900">{organizations.reduce((acc, o) => acc + (o._count?.users || 0), 0)}</h3>
             </div>
          </div>
@@ -157,7 +168,7 @@ const OrganizationManagement: React.FC = () => {
                <ShieldCheck size={24} />
             </div>
             <div>
-               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Compliance</p>
+               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">System Health</p>
                <h3 className="text-2xl font-black text-gray-900">100%</h3>
             </div>
          </div>
@@ -227,7 +238,7 @@ const OrganizationManagement: React.FC = () => {
                              <span className={cn(
                                 "text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest",
                                 org.isActive ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
-                             )}>{org.isActive ? 'Active' : 'Locked'}</span>
+                             )}>{org.isActive ? 'Active' : 'Expired'}</span>
                           </div>
                           {org.subscriptionExpiry && (
                             <p className="text-[10px] font-bold text-gray-400 uppercase">Exp: {format(new Date(org.subscriptionExpiry), 'MMM dd, yyyy')}</p>
@@ -265,27 +276,16 @@ const OrganizationManagement: React.FC = () => {
                           >
                              <Edit3 size={18} />
                           </button>
-                          {org.isActive ? (
-                            <button 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                handleDeleteClick(org.id, org.name); 
-                              }} 
-                              className="px-3 py-1.5 bg-red-50 text-red-500 rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-red-100 transition-all ml-2"
-                            >
-                               Deactivate
-                            </button> 
-                          ) : ( 
-                            <button 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                updateOrganization(org.id, { isActive: true }); 
-                              }} 
-                              className="px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-emerald-100 transition-all ml-2"
-                            >
-                               Reactivate
-                            </button> 
-                          )}
+                          
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              handleDeleteClick(org.id, org.name); 
+                            }} 
+                            className="px-3 py-1.5 bg-red-50 text-red-500 rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-red-100 transition-all ml-2"
+                          >
+                             Terminate Subscription
+                          </button> 
                        </div>
                     </td>
                   </tr>
@@ -508,26 +508,28 @@ const OrganizationManagement: React.FC = () => {
               <div className="w-16 h-16 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center mb-2">
                  <Trash2 size={32} />
               </div>
-              <div className="space-y-2">
-                 <h3 className="text-xl font-black text-gray-900 tracking-tight">Deactivate Organization?</h3>
-                 <p className="text-sm font-medium text-gray-500 leading-relaxed">
-                   Are you sure you want to delete <span className="font-bold text-gray-900">"{orgToDelete.name}"</span>? This action cannot be immediately undone.
-                 </p>
-              </div>
-              <div className="grid grid-cols-2 gap-4 w-full pt-2">
-                 <button 
-                   onClick={() => setIsDeleteConfirmOpen(false)}
-                   className="h-12 rounded-xl font-black text-gray-500 hover:bg-gray-50 transition-all uppercase tracking-widest text-xs"
-                 >
-                    Cancel
-                 </button>
-                 <button 
-                   onClick={confirmDeleteOrg}
-                   className="h-12 rounded-xl font-black bg-red-500 text-white shadow-lg shadow-red-500/30 hover:bg-red-600 transition-all uppercase tracking-widest text-xs"
-                 >
-                    Confirm Delete
-                 </button>
-              </div>
+               <div className="space-y-2">
+                  <h3 className="text-xl font-black text-gray-900 tracking-tight">Terminate Subscription?</h3>
+                  <p className="text-sm font-medium text-gray-500 leading-relaxed">
+                    Are you sure you want to permanently delete <span className="font-bold text-gray-900">"{orgToDelete.name}"</span>? 
+                    <br />
+                    <span className="text-red-500 font-bold block mt-2">⚠️ This will delete all sub-agents, messages, and contacts instantly. This action cannot be undone.</span>
+                  </p>
+               </div>
+               <div className="grid grid-cols-2 gap-4 w-full pt-2">
+                  <button 
+                    onClick={() => setIsDeleteConfirmOpen(false)}
+                    className="h-12 rounded-xl font-black text-gray-500 hover:bg-gray-50 transition-all uppercase tracking-widest text-xs"
+                  >
+                     Cancel
+                  </button>
+                  <button 
+                    onClick={confirmDeleteOrg}
+                    className="h-12 rounded-xl font-black bg-red-500 text-white shadow-lg shadow-red-500/30 hover:bg-red-600 transition-all uppercase tracking-widest text-xs"
+                  >
+                     Confirm Terminate
+                  </button>
+               </div>
            </div>
         </div>
       )}
