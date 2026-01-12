@@ -29,6 +29,18 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Safe date formatting helper to prevent crashes on invalid dates
+function safeFormatDate(dateValue: any, formatString: string, fallback: string = '-'): string {
+  if (!dateValue) return fallback;
+  try {
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return fallback;
+    return format(date, formatString);
+  } catch {
+    return fallback;
+  }
+}
+
 
 const Broadcasts: React.FC = () => {
   const { broadcasts, loading, fetchBroadcasts, deleteBroadcast, getBroadcastReport } = useBroadcastStore();
@@ -41,6 +53,7 @@ const Broadcasts: React.FC = () => {
   // Delete Modal State
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [infoRecipient, setInfoRecipient] = useState<any>(null);
 
   useEffect(() => {
     fetchBroadcasts();
@@ -50,8 +63,13 @@ const Broadcasts: React.FC = () => {
     setReportLoading(true);
     try {
       const report = await getBroadcastReport(id);
+      // Ensure recipients is always an array to prevent rendering crashes
+      if (report && !report.recipients) {
+        report.recipients = [];
+      }
       setSelectedReport(report);
     } catch (err) {
+      console.error('Failed to load report:', err);
       alert('Failed to load report');
     } finally {
       setReportLoading(false);
@@ -70,33 +88,94 @@ const Broadcasts: React.FC = () => {
   };
 
   const downloadCSV = (report: any) => {
-    // ... (rest of CSV logic same as before)
-    const headers = ['Name', 'Phone Number', 'Status', 'WA Message ID', 'Sent At', 'Delivered At', 'Read At', 'Error'];
-    const rows = report.recipients.map((r: any) => [
-      r.contactName || 'Unknown',
-      r.phoneNumber,
-      r.status,
-      r.waMessageId || '-',
-      r.sentAt ? format(new Date(r.sentAt), 'yyyy-MM-dd HH:mm:ss') : '-',
-      r.deliveredAt ? format(new Date(r.deliveredAt), 'yyyy-MM-dd HH:mm:ss') : '-',
-      r.readAt ? format(new Date(r.readAt), 'yyyy-MM-dd HH:mm:ss') : '-',
-      r.error || ''
-    ]);
+    try {
+      if (!report) {
+        alert('No report data available to download');
+        return;
+      }
+      
+      const recipients = report.recipients || [];
+      const campaignName = (report.name || 'Untitled_Campaign').replace(/[^a-zA-Z0-9]/g, '_');
+      const templateName = report.templateName || 'Unknown';
+      
+      // Build CSV with detailed headers
+      const headers = [
+        'Recipient Name',
+        'Phone Number', 
+        'Status',
+        'Delivery Status Detail',
+        'WA Message ID',
+        'Sent At',
+        'Delivered At',
+        'Read At',
+        'Error Message',
+        'Campaign Name',
+        'Template'
+      ];
+      
+      const rows = recipients.map((r: any) => {
+        let deliveryDetail = r.status || 'PENDING';
+        if (r.status === 'SENT' && !r.deliveredAt) {
+          deliveryDetail = 'Waiting for recipient handset (Offline)';
+        } else if (r.status === 'DELIVERED' || r.status === 'READ') {
+          deliveryDetail = 'Received by handset';
+        } else if (r.status === 'FAILED') {
+          deliveryDetail = `Failed: ${r.error || 'Unknown'}`;
+        }
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map((row: any[]) => row.map(v => `"${v}"`).join(','))
-    ].join('\n');
+        return [
+          r.contactName || r.name || 'Unknown',
+          r.phoneNumber || '-',
+          r.status || 'PENDING',
+          deliveryDetail,
+          r.waMessageId || '-',
+          safeFormatDate(r.sentAt, 'yyyy-MM-dd HH:mm:ss'),
+          safeFormatDate(r.deliveredAt, 'yyyy-MM-dd HH:mm:ss'),
+          safeFormatDate(r.readAt, 'yyyy-MM-dd HH:mm:ss'),
+          r.error || '',
+          report.name || 'Untitled Campaign',
+          templateName
+        ];
+      });
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Broadcast_Report_${report.name.replace(/\s+/g, '_')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      // Escape values properly for CSV
+      const escapeCSV = (value: any) => {
+        const str = String(value ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return `"${str}"`;
+      };
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map((row: any[]) => row.map(escapeCSV).join(','))
+      ].join('\n');
+
+      // Create and trigger download using Blob (safe for large files)
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8' });
+      const filename = `Broadcast_Report_${campaignName}.csv`;
+      
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      link.download = filename;
+      
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+        URL.revokeObjectURL(url);
+      }, 100);
+    } catch (err) {
+      console.error('Download failed:', err);
+      alert('Could not generate CSV report. Please try again.');
+    }
   };
 
   const getStatusStyle = (status: string) => {
@@ -129,9 +208,12 @@ const Broadcasts: React.FC = () => {
     }
   };
 
-  const filteredBroadcasts = broadcasts.filter(b => {
-    const matchesSearch = b.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         b.templateName.toLowerCase().includes(searchTerm.toLowerCase());
+  const safeBroadcasts = Array.isArray(broadcasts) ? broadcasts : [];
+  const filteredBroadcasts = safeBroadcasts.filter(b => {
+    const name = b.name || '';
+    const templateName = b.templateName || '';
+    const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         templateName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || b.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -221,11 +303,11 @@ const Broadcasts: React.FC = () => {
                       </span>
                     </div>
                     <h3 className="text-lg font-black text-gray-900 group-hover:text-primary transition-colors">
-                      {campaign.name}
+                      {campaign.name || 'Untitled Campaign'}
                     </h3>
                     <p className="text-sm text-gray-400 font-bold flex items-center mt-1 uppercase tracking-tight">
                       <FileText size={14} className="mr-1.5" />
-                      {campaign.templateName}
+                      {campaign.templateName || 'Unknown Template'}
                     </p>
                   </div>
 
@@ -248,9 +330,11 @@ const Broadcasts: React.FC = () => {
                   {/* Actions */}
                   <div className="flex items-center space-x-3">
                     <div className="text-right mr-4 hidden sm:block">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Created At</p>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                        {campaign.status === 'SCHEDULED' ? 'Scheduled For' : 'Created At'}
+                      </p>
                       <p className="text-xs font-bold text-gray-600">
-                        {format(new Date(campaign.createdAt), 'MMM dd, HH:mm')}
+                        {safeFormatDate(campaign.status === 'SCHEDULED' ? campaign.scheduledAt : campaign.createdAt, 'MMM dd, HH:mm')}
                       </p>
                     </div>
                     <button 
@@ -347,7 +431,7 @@ const Broadcasts: React.FC = () => {
                   <div className="flex items-center space-x-3 mt-1">
                     <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{selectedReport.templateName}</span>
                     <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{format(new Date(selectedReport.createdAt), 'PPP p')}</span>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{safeFormatDate(selectedReport.createdAt, 'PPP p')}</span>
                   </div>
                 </div>
               </div>
@@ -405,7 +489,7 @@ const Broadcasts: React.FC = () => {
                           </tr>
                        </thead>
                        <tbody className="divide-y divide-gray-50">
-                          {selectedReport.recipients.map((r: any) => (
+                           {(selectedReport.recipients || []).map((r: any) => (
                              <tr key={r.id} className="hover:bg-gray-50/50 transition-all group">
                                 <td className="px-6 py-4">
                                    <div className="flex items-center space-x-3">
@@ -447,16 +531,18 @@ const Broadcasts: React.FC = () => {
                                    </div>
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                   {r.error ? (
-                                      <div className="flex items-center justify-end text-red-500 space-x-1" title={r.error}>
-                                         <AlertCircle size={14} />
-                                         <span className="text-[10px] font-bold">Error Info</span>
-                                      </div>
-                                   ) : (
-                                      <div className="flex items-center justify-end text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">
-                                         <ExternalLink size={14} />
-                                      </div>
-                                   )}
+                                   <button onClick={() => setInfoRecipient(r)} className="ml-auto block hover:opacity-80 transition-opacity">
+                                     {r.error ? (
+                                        <div className="flex items-center justify-end text-red-500 space-x-1" title={r.error}>
+                                           <AlertCircle size={14} />
+                                           <span className="text-[10px] font-bold">Error Info</span>
+                                        </div>
+                                     ) : (
+                                        <div className="flex items-center justify-end text-gray-300 group-hover:text-primary transition-colors">
+                                           <ExternalLink size={14} />
+                                        </div>
+                                     )}
+                                   </button>
                                 </td>
                              </tr>
                           ))}
@@ -477,6 +563,55 @@ const Broadcasts: React.FC = () => {
                </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Info Recipient Modal */}
+      {infoRecipient && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white rounded-[24px] p-6 max-w-sm w-full shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-center mb-6">
+                 <h3 className="font-black text-gray-900 text-lg">Message Details</h3>
+                 <button onClick={() => setInfoRecipient(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={20} className="text-gray-400"/></button>
+              </div>
+              <div className="space-y-4">
+                 <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <span className="text-gray-400 font-bold text-[10px] uppercase block mb-1">Recipient</span>
+                    <span className="font-black text-gray-900 text-lg block">{infoRecipient.contactName || infoRecipient.name || 'Unknown'}</span>
+                    <div className="flex items-center space-x-2 mt-1 text-gray-500 font-mono text-xs font-bold">
+                      <Phone size={12} />
+                      <span>{infoRecipient.phoneNumber}</span>
+                    </div>
+                 </div>
+                 
+                 <div className="grid grid-cols-2 gap-3">
+                   <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <span className="text-gray-400 font-bold text-[10px] uppercase block mb-1">Status</span>
+                      <span className={cn(
+                        "text-xs font-black uppercase",
+                        infoRecipient.status === 'FAILED' ? "text-red-500" : 
+                        infoRecipient.status === 'DELIVERED' ? "text-green-500" : 
+                        infoRecipient.status === 'READ' ? "text-blue-500" : "text-gray-500"
+                      )}>{infoRecipient.status}</span>
+                   </div>
+                   <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <span className="text-gray-400 font-bold text-[10px] uppercase block mb-1">Message ID</span>
+                      <span className="font-mono text-[10px] text-gray-500 block truncate" title={infoRecipient.waMessageId || '-'}>{infoRecipient.waMessageId || '-'}</span>
+                   </div>
+                 </div>
+
+                 {infoRecipient.error && (
+                   <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
+                      <div className="flex items-center space-x-2 text-red-500 mb-2">
+                        <AlertCircle size={16} />
+                        <span className="font-black text-xs uppercase">Error Description</span>
+                      </div>
+                      <p className="text-red-600 font-medium text-sm leading-relaxed">{infoRecipient.error}</p>
+                   </div>
+                 )}
+              </div>
+              <button onClick={() => setInfoRecipient(null)} className="btn-secondary w-full mt-6 h-12 rounded-2xl font-bold">Close Details</button>
+           </div>
         </div>
       )}
 

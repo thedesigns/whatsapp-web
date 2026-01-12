@@ -93,7 +93,7 @@ const Chat: React.FC = () => {
       socket?.on('new_message', (data: any) => {
         // Extract message from wrapper if needed
         const messageToAdd = data.message || data;
-        addMessage(messageToAdd);
+        addMessage(messageToAdd, data.conversation);
       });
       
       socket?.on('message_status', (data: any) => {

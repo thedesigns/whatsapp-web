@@ -43,7 +43,8 @@ import {
   PanelRight,
   Zap,
   Upload,
-  Search
+  Search,
+  CreditCard
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -142,7 +143,7 @@ const MediaForwardNode = ({ data }: any) => {
     <div className="bg-white rounded-2xl shadow-lg border-2 border-purple-400 p-4 min-w-[200px]">
       <Handle type="target" position={Position.Top} className="bg-gray-400!" />
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center shadow-sm">
+        <div className="w-8 h-8 bg-linear-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center shadow-sm">
           <Upload size={16} className="text-white" />
         </div>
         <div className="flex flex-col">
@@ -1147,6 +1148,56 @@ const GroupImageNode = ({ data }: any) => {
   );
 };
 
+// Custom Node: Payment Integration
+const PaymentNode = ({ data }: any) => {
+  const provider = data.provider || 'razorpay';
+  
+  return (
+    <div className="bg-white rounded-2xl shadow-lg border-2 border-indigo-500 p-4 min-w-[250px]">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+          <CreditCard size={18} className="text-white" />
+        </div>
+        <div>
+          <span className="font-bold text-sm text-gray-800">{data.label || 'Payment Link'}</span>
+          <div className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">
+            {provider === 'razorpay' ? 'RAZORPAY 🇮🇳' : 'STRIPE 🌍'}
+          </div>
+        </div>
+      </div>
+      
+      <div className="space-y-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
+        <div className="flex justify-between items-center text-[10px] text-gray-500 font-medium">
+             <span>Amount:</span>
+             <span className="font-bold text-indigo-600 text-xs">
+                {data.currency || 'INR'} {data.amount || '0'}
+             </span>
+        </div>
+        {data.description && (
+          <div className="text-[10px] text-gray-400 truncate border-t border-gray-200 pt-1 mt-1">
+            {data.description}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 flex justify-between px-1">
+         <div className="flex flex-col items-center">
+             <Handle type="source" position={Position.Bottom} id="success" className="bg-green-500! w-3 h-3" style={{ left: '25%' }} />
+             <span className="text-[8px] font-bold text-green-600 mt-1">Success</span>
+         </div>
+         <div className="flex flex-col items-center">
+             <Handle type="source" position={Position.Bottom} id="fail" className="bg-red-500! w-3 h-3" style={{ left: '75%' }} />
+             <span className="text-[8px] font-bold text-red-600 mt-1">Fail</span>
+         </div>
+      </div>
+      
+      <Handle type="target" position={Position.Top} className="bg-indigo-400!" />
+    </div>
+  );
+};
+
+
+
 // Custom Node: Start Trigger - Entry point for chatbot flows
 const StartNode = ({ data }: any) => {
   const triggerMode = data.triggerMode || 'any'; // 'any' or 'keywords'
@@ -1156,7 +1207,7 @@ const StartNode = ({ data }: any) => {
   return (
     <div className="bg-white rounded-2xl shadow-lg border-2 border-green-500 p-4 min-w-[220px]">
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-9 h-9 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-200">
+        <div className="w-9 h-9 bg-linear-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-200">
           <Zap size={18} className="text-white" />
         </div>
         <div>
@@ -1380,6 +1431,7 @@ const ChatbotBuilder: React.FC = () => {
     group_images: GroupImageNode,
     start_trigger: StartNode,
     media_forward: MediaForwardNode,
+    payment: PaymentNode,
   }), []);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -1418,6 +1470,7 @@ const ChatbotBuilder: React.FC = () => {
   const [flowName, setFlowName] = useState('');
   const [triggerKeyword, setTriggerKeyword] = useState('');
   const [isDefault, setIsDefault] = useState(false);
+  const [isActive, setIsActive] = useState(true);
 
   // Update flow name/trigger when selected flow changes
   useEffect(() => {
@@ -1426,6 +1479,7 @@ const ChatbotBuilder: React.FC = () => {
       setFlowName(current.name);
       setTriggerKeyword(current.triggerKeyword || '');
       setIsDefault((current as any).isDefault || false);
+      setIsActive((current as any).isActive !== false);
     }
   }, [flowId, flowList]);
 
@@ -1521,6 +1575,37 @@ const ChatbotBuilder: React.FC = () => {
              className="input h-10 text-sm px-2 w-32 border-primary/30"
              title="Keyword to trigger this flow"
           />
+
+          {/* Active/Inactive Toggle */}
+          <div 
+             className={cn(
+               "flex items-center gap-2 px-3 h-10 rounded-2xl border cursor-pointer transition-all",
+               isActive ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"
+             )}
+             onClick={async () => {
+                if (!flowId) return;
+                const newState = !isActive;
+                setIsActive(newState); // Optimistic update
+                await useFlowStore.getState().toggleFlowStatus(flowId, newState);
+             }}
+             title="Toggle Flow ON/OFF"
+          >
+             <div className={cn(
+               "w-8 h-4 rounded-full relative transition-colors",
+               isActive ? "bg-green-500" : "bg-gray-300"
+             )}>
+                <div className={cn(
+                   "w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all shadow-sm",
+                   isActive ? "left-4.5" : "left-0.5"
+                )} />
+             </div>
+             <span className={cn(
+               "text-[10px] font-black uppercase",
+               isActive ? "text-green-600" : "text-gray-400"
+             )}>
+                {isActive ? 'Active' : 'Inactive'}
+             </span>
+          </div>
 
           <div className="flex items-center gap-2 bg-gray-50 px-3 h-10 rounded-2xl border border-gray-100">
             <input 
@@ -1728,6 +1813,7 @@ const ChatbotBuilder: React.FC = () => {
                      { type: 'keyword_match', label: 'Keyword Match', icon: Key, color: 'bg-sky-500' },
                      { type: 'router', label: 'Condition Router', icon: GitBranch, color: 'bg-rose-500' },
                      { type: 'group_images', label: 'Group Images', icon: ImageIcon, color: 'bg-fuchsia-500' },
+                     { type: 'payment', label: 'Payment Link', icon: CreditCard, color: 'bg-indigo-600' },
                   ].filter(node => 
                     node.label.toLowerCase().includes(sidebarSearchQuery.toLowerCase()) ||
                     node.type.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
@@ -1847,7 +1933,7 @@ const ChatbotBuilder: React.FC = () => {
                     />
                     
                     {showCanvasSearchResults && canvasSearchQuery.length > 0 && (
-                      <div className="absolute top-12 right-0 w-64 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-100 p-2 z-[999] max-h-60 overflow-y-auto">
+                      <div className="absolute top-12 right-0 w-64 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-100 p-2 z-999 max-h-60 overflow-y-auto">
                         <div className="flex items-center justify-between px-2 py-1 border-b border-gray-50 mb-1">
                           <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Search Results</span>
                           <button onClick={() => setShowCanvasSearchResults(false)} className="text-gray-300 hover:text-gray-600">
@@ -2453,7 +2539,7 @@ const ChatbotBuilder: React.FC = () => {
 
                        {selectedNode.type === 'media_forward' && (
                          <div className="space-y-4">
-                             <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-3 border border-purple-100">
+                             <div className="bg-linear-to-r from-purple-50 to-pink-50 rounded-xl p-3 border border-purple-100">
                                  <p className="text-[9px] text-purple-700 font-bold">📤 Forward uploaded media to an external API for OCR, storage, or processing.</p>
                              </div>
 
@@ -2465,147 +2551,104 @@ const ChatbotBuilder: React.FC = () => {
                                      value={selectedNode.data.url || ''}
                                      onChange={(e) => updateNodeData(selectedNode.id, { url: e.target.value })}
                                  />
-                                 <p className="text-[8px] text-gray-400 ml-1">The external API that will receive the media file (multipart/form-data)</p>
                              </div>
-
-                             <div className="grid grid-cols-2 gap-2">
-                                 <div className="space-y-1.5">
-                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Media ID Variable</label>
-                                     <input 
-                                         className="input h-10 text-xs font-mono"
-                                         placeholder="document_id"
-                                         value={selectedNode.data.mediaIdVariable || ''}
-                                         onChange={(e) => updateNodeData(selectedNode.id, { mediaIdVariable: e.target.value })}
-                                     />
-                                     <p className="text-[8px] text-gray-400 ml-1">Variable containing the WhatsApp Media ID</p>
-                                 </div>
-                                 <div className="space-y-1.5">
-                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Form Field Name</label>
-                                     <input 
-                                         className="input h-10 text-xs font-mono"
-                                         placeholder="file"
-                                         value={selectedNode.data.fieldName || ''}
-                                         onChange={(e) => updateNodeData(selectedNode.id, { fieldName: e.target.value })}
-                                     />
-                                     <p className="text-[8px] text-gray-400 ml-1">Field name for the file in form data</p>
-                                 </div>
-                             </div>
-
-                             <div className="space-y-1.5">
-                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Result Variable</label>
-                                 <input 
-                                     className="input h-10 text-xs font-mono"
-                                     placeholder="ocr_result"
-                                     value={selectedNode.data.resultVariable || ''}
-                                     onChange={(e) => updateNodeData(selectedNode.id, { resultVariable: e.target.value })}
-                                 />
-                                 <p className="text-[8px] text-gray-400 ml-1">Variable to store the full API response</p>
-                             </div>
-
-                             {/* Headers */}
-                             <div className="space-y-1.5">
-                                 <div className="flex items-center justify-between">
-                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Headers</label>
-                                     <button 
-                                         onClick={() => updateNodeData(selectedNode.id, { headers: [...(selectedNode.data.headers || []), { key: '', value: '' }] })}
-                                         className="text-[10px] font-bold text-primary flex items-center gap-1 hover:underline"
-                                     >
-                                         <Plus size={12} /> Add
-                                     </button>
-                                 </div>
-                                 <div className="space-y-2">
-                                     {(selectedNode.data.headers || []).map((h: any, idx: number) => (
-                                         <div key={idx} className="flex gap-1">
-                                             <input 
-                                                 className="input h-8 text-[10px] flex-1 min-w-[30%]"
-                                                 placeholder="Key (e.g. apikey)"
-                                                 value={h.key}
-                                                 onChange={(e) => {
-                                                     const newHeaders = [...(selectedNode.data.headers || [])];
-                                                     newHeaders[idx].key = e.target.value;
-                                                     updateNodeData(selectedNode.id, { headers: newHeaders });
-                                                 }}
-                                             />
-                                             <input 
-                                                 className="input h-8 text-[10px] flex-1"
-                                                 placeholder="Value"
-                                                 value={h.value}
-                                                 onChange={(e) => {
-                                                     const newHeaders = [...(selectedNode.data.headers || [])];
-                                                     newHeaders[idx].value = e.target.value;
-                                                     updateNodeData(selectedNode.id, { headers: newHeaders });
-                                                 }}
-                                             />
-                                             <button 
-                                                 onClick={() => {
-                                                     const newHeaders = [...(selectedNode.data.headers || [])];
-                                                     newHeaders.splice(idx, 1);
-                                                     updateNodeData(selectedNode.id, { headers: newHeaders });
-                                                 }}
-                                                 className="p-1 px-2 hover:bg-red-50 text-red-400 rounded transition-colors"
-                                             >
-                                                 <Trash2 size={12} />
-                                             </button>
-                                         </div>
-                                     ))}
-                                 </div>
-                             </div>
-
-                             {/* Response Mapping */}
-                             <div className="space-y-1.5">
-                                 <div className="flex items-center justify-between">
-                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Response Mapping</label>
-                                     <button 
-                                         onClick={() => updateNodeData(selectedNode.id, { mapping: [...(selectedNode.data.mapping || []), { path: '', variable: '' }] })}
-                                         className="text-[10px] font-bold text-primary flex items-center gap-1 hover:underline"
-                                     >
-                                         <Plus size={12} /> Add Mapping
-                                     </button>
-                                 </div>
-                                 <div className="space-y-2">
-                                     {(selectedNode.data.mapping || []).map((m: any, idx: number) => (
-                                         <div key={idx} className="flex gap-1 items-center">
-                                             <input 
-                                                 className="input h-8 text-[10px] flex-1"
-                                                 placeholder="ParsedResults[0].ParsedText"
-                                                 value={m.path}
-                                                 onChange={(e) => {
-                                                     const newMapping = [...(selectedNode.data.mapping || [])];
-                                                     newMapping[idx].path = e.target.value;
-                                                     updateNodeData(selectedNode.id, { mapping: newMapping });
-                                                 }}
-                                             />
-                                             <div className="text-gray-400 px-1 text-[10px]">→</div>
-                                             <input 
-                                                 className="input h-8 text-[10px] flex-1"
-                                                 placeholder="ocr_text"
-                                                 value={m.variable}
-                                                 onChange={(e) => {
-                                                     const newMapping = [...(selectedNode.data.mapping || [])];
-                                                     newMapping[idx].variable = e.target.value;
-                                                     updateNodeData(selectedNode.id, { mapping: newMapping });
-                                                 }}
-                                             />
-                                             <button 
-                                                 onClick={() => {
-                                                     const newMapping = [...(selectedNode.data.mapping || [])];
-                                                     newMapping.splice(idx, 1);
-                                                     updateNodeData(selectedNode.id, { mapping: newMapping });
-                                                 }}
-                                                 className="p-1 px-2 hover:bg-red-50 text-red-400 rounded transition-colors"
-                                             >
-                                                 <Trash2 size={12} />
-                                             </button>
-                                         </div>
-                                     ))}
-                                 </div>
-                             </div>
-
-                             <p className="text-[9px] text-gray-400 bg-gray-50 p-2 rounded-lg">
-                                 📄 This node downloads media from WhatsApp and POSTs it to your API. Use for OCR services (like OCR.space) or cloud storage (S3, Cloudinary). Map response fields to variables.
-                             </p>
                          </div>
                        )}
+
+                       {selectedNode.type === 'payment' && (
+                          <div className="space-y-4">
+                              <div className="bg-linear-to-r from-indigo-50 to-purple-50 rounded-xl p-3 border border-indigo-100">
+                                  <p className="text-[9px] text-indigo-700 font-bold">💳 Generate a payment link and send it to the user. Proceed to 'Success' once generated.</p>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Payment Provider</label>
+                                  <select 
+                                      className="input h-10 text-xs font-bold"
+                                      value={selectedNode.data.provider || 'razorpay'}
+                                      onChange={(e) => updateNodeData(selectedNode.id, { provider: e.target.value })}
+                                  >
+                                      <option value="razorpay">🇮🇳 Razorpay</option>
+                                      <option value="stripe">🌍 Stripe</option>
+                                  </select>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                 <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Key ID / Publishable</label>
+                                    <input 
+                                        className="input h-10 text-xs font-mono"
+                                        placeholder={selectedNode.data.provider === 'stripe' ? 'Unused for now' : 'rzp_test_...'}
+                                        value={selectedNode.data.apiKey || ''}
+                                        onChange={(e) => updateNodeData(selectedNode.id, { apiKey: e.target.value })}
+                                    />
+                                 </div>
+                                 <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Key Secret / Secret</label>
+                                    <input 
+                                        type="password"
+                                        className="input h-10 text-xs font-mono"
+                                        placeholder="Secret Key"
+                                        value={selectedNode.data.apiSecret || ''}
+                                        onChange={(e) => updateNodeData(selectedNode.id, { apiSecret: e.target.value })}
+                                    />
+                                 </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-3 gap-2">
+                                  <div className="col-span-1 space-y-1.5">
+                                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Currency</label>
+                                      <input 
+                                          className="input h-10 text-xs font-bold uppercase"
+                                          placeholder="INR"
+                                          value={selectedNode.data.currency || 'INR'}
+                                          onChange={(e) => updateNodeData(selectedNode.id, { currency: e.target.value })}
+                                      />
+                                  </div>
+                                  <div className="col-span-2 space-y-1.5">
+                                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Amount</label>
+                                      <input 
+                                          className="input h-10 text-xs font-mono"
+                                          placeholder="100.00 or {{amount}}"
+                                          value={selectedNode.data.amount || ''}
+                                          onChange={(e) => updateNodeData(selectedNode.id, { amount: e.target.value })}
+                                      />
+                                  </div>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Description</label>
+                                  <input 
+                                      className="input h-10 text-xs"
+                                      placeholder="Order #1234"
+                                      value={selectedNode.data.description || ''}
+                                      onChange={(e) => updateNodeData(selectedNode.id, { description: e.target.value })}
+                                  />
+                              </div>
+                              
+                              <div className="space-y-1.5">
+                                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Message Body</label>
+                                  <textarea 
+                                      className="input min-h-20 py-2 text-xs"
+                                      placeholder="Please pay using this link: {{link}}"
+                                      value={selectedNode.data.messageBody || ''}
+                                      onChange={(e) => updateNodeData(selectedNode.id, { messageBody: e.target.value })}
+                                  />
+                                  <p className="text-[9px] text-gray-400">Use <code>{'{{link}}'}</code> to inject the payment URL.</p>
+                              </div>
+                              
+                              <div className="space-y-1.5">
+                                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter ml-1">Error Message</label>
+                                  <input 
+                                      className="input h-10 text-xs"
+                                      placeholder="Payment generation failed."
+                                      value={selectedNode.data.errorMessage || ''}
+                                      onChange={(e) => updateNodeData(selectedNode.id, { errorMessage: e.target.value })}
+                                  />
+                              </div>
+                          </div>
+                       )}
+
 
                        {selectedNode.type === 'sql' && (
                          <div className="space-y-4">
@@ -3148,7 +3191,7 @@ const ChatbotBuilder: React.FC = () => {
 
                        {selectedNode.type === 'start_trigger' && (
                           <div className="space-y-4">
-                              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-3 border border-green-100">
+                              <div className="bg-linear-to-r from-green-50 to-emerald-50 rounded-xl p-3 border border-green-100">
                                   <p className="text-[9px] text-green-700 font-bold">⚡ Entry point for your chatbot flow. Choose when this flow should be triggered.</p>
                               </div>
                               

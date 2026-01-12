@@ -49,7 +49,7 @@ interface ChatState {
   
   fetchConversations: (broadcastId?: string) => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
-  addMessage: (message: Message) => void;
+  addMessage: (message: Message, conversationUpdate?: any) => void;
   updateMessageStatus: (messageId: string, status: string) => void;
   sendMessage: (conversationId: string, content: string) => Promise<void>;
   sendMedia: (conversationId: string, file: File, type: string, caption?: string) => Promise<void>;
@@ -138,7 +138,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  addMessage: (message) => {
+  addMessage: (message, conversationUpdate?) => {
     if (!message || !message.id) return;
     
     set((state) => {
@@ -150,8 +150,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const convExists = state.conversations.find(c => c.id === conversationId || c.waId === (message as any).waId);
 
       if (!convExists) {
-        // If conversation doesn't exist, we should probably trigger a refresh or handle it
-        // For now, let's just refresh the list to be safe and captured the new one
         get().fetchConversations();
       }
 
@@ -160,6 +158,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         c.id === conversationId || c.waId === (message as any).waId
           ? { 
               ...c, 
+              ...(conversationUpdate || {}), // Merge updates if provided
               lastMessage: message.content, 
               updatedAt: message.timestamp || new Date().toISOString(),
               unreadCount: (message.direction === 'INCOMING' && !isCurrentlySelected) 

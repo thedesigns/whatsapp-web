@@ -37,6 +37,7 @@ interface FlowState {
   resetFlow: () => void;
   testFlow: (flowId: string, phoneNumber: string) => Promise<{ success: boolean; message?: string }>;
   deleteFlow: (flowId: string) => Promise<{ success: boolean; message?: string }>;
+  toggleFlowStatus: (flowId: string, isActive: boolean) => Promise<boolean>;
 }
 
 export const useFlowStore = create<FlowState>((set, get) => ({
@@ -202,8 +203,24 @@ export const useFlowStore = create<FlowState>((set, get) => ({
     } catch (e: any) {
       console.error('Delete flow failed', e);
       return { success: false, message: e.response?.data?.error || e.message };
-    } finally {
       set({ loading: false });
+    }
+  },
+
+  toggleFlowStatus: async (flowId: string, isActive: boolean) => {
+    try {
+      await api.patch(`/chatbot/flows/${flowId}/status`, { isActive });
+      
+      // Update local state without full refetch for speed
+      set(state => ({
+        flowList: state.flowList.map(f => 
+          f.id === flowId ? { ...f, isActive } : f
+        )
+      }));
+      return true;
+    } catch (error) {
+      console.error('Failed to toggle flow status', error);
+      return false;
     }
   },
 }));

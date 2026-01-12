@@ -42,8 +42,10 @@ export const useBroadcastStore = create<BroadcastState>((set) => ({
   createBroadcast: async (data) => {
     set({ loading: true });
     try {
-      const response = await api.post('/broadcasts', data);
-      set((state) => ({ broadcasts: [response.data, ...state.broadcasts] }));
+      await api.post('/broadcasts', data);
+      // Refetch all broadcasts to get complete data including name and templateName
+      const response = await api.get('/broadcasts');
+      set({ broadcasts: response.data });
     } catch (error) {
       console.error('Failed to create broadcast', error);
       throw error;

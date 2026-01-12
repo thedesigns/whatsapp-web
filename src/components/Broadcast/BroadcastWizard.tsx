@@ -50,6 +50,7 @@ const BroadcastWizard: React.FC<BroadcastWizardProps> = ({ isOpen, onClose }) =>
   const [variableMappings, setVariableMappings] = useState<Record<number, string>>({});
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
+  const [enableChatbot, setEnableChatbot] = useState(true);
   
   // Selection State
   const [selectionMode, setSelectionMode] = useState<'CSV' | 'CRM' | 'GROUPS' | null>(null);
@@ -77,6 +78,7 @@ const BroadcastWizard: React.FC<BroadcastWizardProps> = ({ isOpen, onClose }) =>
     setVariableMappings({});
     setIsScheduled(false);
     setScheduledAt('');
+    setEnableChatbot(true);
     setSelectionMode(null);
     setSelectedContactIds([]);
     setSelectedGroupIds([]);
@@ -217,6 +219,12 @@ const BroadcastWizard: React.FC<BroadcastWizardProps> = ({ isOpen, onClose }) =>
         };
       });
 
+      // Convert scheduledAt to a full ISO string with timezone offset for the backend
+      let finalScheduledAt = undefined;
+      if (isScheduled && scheduledAt) {
+        finalScheduledAt = new Date(scheduledAt).toISOString();
+      }
+
       await createBroadcast({
         name,
         templateName: selectedTemplate.name,
@@ -224,7 +232,8 @@ const BroadcastWizard: React.FC<BroadcastWizardProps> = ({ isOpen, onClose }) =>
         recipients: finalRecipients,
         mediaId: mediaId || undefined,
         mediaType: mediaType || undefined,
-        scheduledAt: isScheduled ? scheduledAt : undefined
+        scheduledAt: finalScheduledAt,
+        enableChatbot
       });
       onClose();
     } catch (err) {
@@ -309,7 +318,7 @@ const BroadcastWizard: React.FC<BroadcastWizardProps> = ({ isOpen, onClose }) =>
               <div>
                 <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-2">Choose Template</label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {templates.filter(t => t.status === 'APPROVED').map(t => (
+                  {(templates || []).filter(t => t.status === 'APPROVED').map(t => (
                     <button
                       key={t.id}
                       onClick={() => setSelectedTemplate(t)}
@@ -422,7 +431,7 @@ const BroadcastWizard: React.FC<BroadcastWizardProps> = ({ isOpen, onClose }) =>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar p-2">
-                       {groups.map(g => (
+                       {(groups || []).map(g => (
                          <button
                            key={g.id}
                            onClick={() => {
@@ -475,7 +484,7 @@ const BroadcastWizard: React.FC<BroadcastWizardProps> = ({ isOpen, onClose }) =>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-                       {contacts.filter(c => c.name.toLowerCase().includes(crmSearchTerm.toLowerCase())).map(c => (
+                       {(contacts || []).filter(c => c.name.toLowerCase().includes(crmSearchTerm.toLowerCase())).map(c => (
                          <button
                           key={c.id}
                           onClick={() => {
